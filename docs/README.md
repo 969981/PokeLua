@@ -20,6 +20,7 @@ review_date: 2026-11-10
 - [[research/07-branch-sync-governance|07 main/develop 同步与开源维护]]
 - [[research/08-script-triage|08 26 份脚本逐文件性能分诊]]
 - [[research/09-frlg-p1-implementation|09 FRLG P1 调度器实施与 Mock 对账]]
+- [[research/10-frlg-real-mgba-gate|10 FRLG P1 真实 mGBA 1×–16× 验收工具与门槛]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 
