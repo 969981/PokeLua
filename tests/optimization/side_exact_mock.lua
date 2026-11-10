@@ -34,6 +34,8 @@ function emu:read32() return seed end
 function emu:readRange() return string.rep("\0",16) end
 function emu:currentFrame()return frame end
 function emu:reset()frame=0 end
+function emu:setBreakpoint() return 1 end -- Breakpoint remains dormant in this mock scenario.
+function emu:clearBreakpoint() end
 callbacks={}
 function callbacks:add(name,fn)self[name]=fn end
 dofile(path)
