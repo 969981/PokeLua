@@ -79,7 +79,10 @@ class SourceTests(unittest.TestCase):
                 "Gen 3/mGBA/Side/E_Held_Item_RNG_mGBA.lua",
                 "Gen 3/mGBA/Side/FRLG_Held_Item_RNG_mGBA.lua",
                 "Gen 3/mGBA/Side/RS_Held_Item_RNG_mGBA.lua"
-            ):
+            ) or p.startswith("Gen 4/"):
+                # Gen4 P2 changed prediction runtime as well as block offset tables.
+                # The dedicated tests/gen4/test_encounter_p2.py owns the finer
+                # original-loop equivalence and time-slice budget verification.
                 continue
             with self.subTest(p=p):
                 a=old(p); b=new(p); m=OFF_RX.search(a)

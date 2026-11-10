@@ -31,6 +31,7 @@ review_date: 2026-11-10
 - [[research/18-rs-ranch-real-acceptance|18 RS 实机三组性能对照与 Ranch 赠送双场景验收]]
 - [[research/19-all-lua-optimization|19 26 份游戏 Lua 完整优化差异、测试与剩余关口]]
 - [[research/20-gen4-encounter-p2|20 Gen4 六份遇敌预测分片与原版对账]]
+- [[research/21-gen5-userdata-observer|21 Gen5 BW/B2W2 userdata 写入成本观测]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 

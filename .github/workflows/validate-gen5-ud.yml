@@ -1,0 +1,30 @@
+name: Gen5 userdata set probe source and mock parity
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "tests/gen5/**"
+      - ".github/workflows/validate-gen5-ud.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-rom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Lua
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+      - name: Original userdata write trace vs generated probe
+        run: python tests/gen5/test_userdata_probe.py
+      - name: State evidence boundary
+        run: |
+          echo "OFFLINE_ONLY: game userdata persistence and Savestate not run"

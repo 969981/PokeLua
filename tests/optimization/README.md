@@ -15,3 +15,7 @@ python tests/optimization/verify.py
 - 对三份 Held Item Side 脚本各 480 帧模拟，检查逐帧 RNG 和 Savestate 输入调用数一致、UI 负载下降。
 
 **Mock 不包含任何商业 ROM 或真实模拟器。** 不代表高倍率 FPS 或 TID 成功率的实机测试。真实门槛见 `docs/research/19-all-lua-optimization.md`。
+
+## Gen4 P2 改动后的验证职责
+
+Gen4 六个游戏脚本现在还包含有意的遇敌预测分片改动，因此原先“除了查表完全无其他源码变化”的断言仅用于仍是纯查表改动的 Gen5 四份脚本。Gen4 由 tests/gen4/test_encounter_p2.py 的原版预测控制流/黄金输入对账负责；所有 15 份区块映射仍由 verify.py 比较完整 24 档。
