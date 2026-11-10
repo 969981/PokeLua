@@ -29,3 +29,13 @@ python tests/ranch/analyze_scan.py tests/ranch/output/ranch_01_scan.tsv --output
 ```
 
 这里的平均扫描开销只对应注入探针的 Lua，不代表无探针 FPS。
+
+## Ranch 两场景对照
+
+在有真实赠送事件的自定义 Dolphin Lua Core 环境中分别生成 `ranch_no_offer` 和 `ranch_offer` 日志，至少各 600 次更新。使用 [compare_scenes.py](compare_scenes.py) 校验两个场景分别具有无命中及真实对象命中证据：
+
+```bash
+python tests/ranch/compare_scenes.py --no-offer tests/ranch/output/ranch_no_offer_scan.tsv --offer tests/ranch/output/ranch_offer_scan.tsv --out tests/ranch/output/comparison.json
+```
+
+参见 [RS/Ranch 实机验收完整说明](../../docs/research/18-rs-ranch-real-acceptance.md)。此步骤必须使用支持 Tools > Execute Script 的 **Dolphin Lua Core** 特定构建，普通 Dolphin 不保证提供 Lua 接口。
