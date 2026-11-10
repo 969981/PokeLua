@@ -65,7 +65,16 @@ compiled()
 if scenario=="tid_success" or scenario=="tid_limit" then
  local result=TIDBotLoop()
  if scenario=="tid_limit" then assert(result==false,"cap not reached") end
- if scenario=="tid_success" then assert(TIDFound and attempts==2) end
+ if scenario=="tid_success" then
+  -- TIDFound is a local upvalue in the original scripts, not a global.
+  local observedFound = false
+  for i=1,40 do
+   local name,value=debug.getupvalue(TIDBotLoop,i)
+   if not name then break end
+   if name=="TIDFound" then observedFound=value;break end
+  end
+  assert(observedFound and attempts==2,"expected TID success on second attempt")
+ end
 elseif scenario=="shiny_limit" then
  -- Select Gift mode for known 35-frame limit.
  for i=1,25 do
