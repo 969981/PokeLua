@@ -65,6 +65,42 @@ local biteFlagAddr = 0xCD3D
 local tidAddr
 local TIDFound = false
 local botTargetTIDs = {0, 1, 1337, 8453, 8411, 11233, 11111, 22222, 33333}  -- Input here the bot target TIDs
+-- Optional Gen1 Bot safeguards; default 0 preserves original unlimited search.
+-- Diagnostics only, no RNG/DV, frame input or savestate reordering.
+local BOT_MAX_ATTEMPTS = 0
+local BOT_REPORT_EVERY = 0
+local botAttemptStats = {shiny = 0, bite = 0, species = 0, tid = 0}
+local botSelectLatched = false
+
+function getBotAttemptStats()
+ return {shiny = botAttemptStats.shiny, bite = botAttemptStats.bite,
+         species = botAttemptStats.species, tid = botAttemptStats.tid}
+end
+
+local function botCanAttempt(kind, attempt)
+ if BOT_MAX_ATTEMPTS > 0 and attempt > BOT_MAX_ATTEMPTS then
+  print(string.format("[Gen1 Bot] %s stopped after %d attempts (limit %d)",
+                      kind, attempt - 1, BOT_MAX_ATTEMPTS))
+  return false
+ end
+ botAttemptStats[kind] = botAttemptStats[kind] + 1
+ if BOT_REPORT_EVERY > 0 and attempt % BOT_REPORT_EVERY == 0 then
+  print(string.format("[Gen1 Bot] %s attempt %d", kind, attempt))
+ end
+ return true
+end
+
+local function botRequested(selectHeld)
+ if BOT_MAX_ATTEMPTS <= 0 then return selectHeld end
+ if not selectHeld then
+  botSelectLatched = false
+  return false
+ end
+ if botSelectLatched then return false end
+ botSelectLatched = true
+ return true
+end
+
 
 if versionAddr == 0x4C41 then  -- Check game version
  version = "Crystal"
@@ -189,7 +225,10 @@ function shinyBotLoop(pokemonDVsAddr)
  shinyFound = {false, "None"}
  botOneTime = false
 
+ local shinyAttempts = 0
  while not shinyFound[1] do
+  shinyAttempts = shinyAttempts + 1
+  if not botCanAttempt("shiny", shinyAttempts) then return false end
   savestate.save(botState)
   joypad.set(1, {A = true})
   local frameLimit
@@ -251,7 +290,7 @@ end
 function shinyBot(pokemonDVsAddr)
  local key = joypad.get(1)
 
- if key.select then
+ if botRequested(key.select) then
   shinyBotLoop(pokemonDVsAddr)
  end
 
@@ -261,7 +300,10 @@ end
 function fishingBotBiteLoop()
  local biteFlag = false
 
+ local biteAttempts = 0
  while not biteFlag do
+  biteAttempts = biteAttempts + 1
+  if not botCanAttempt("bite", biteAttempts) then return false end
   savestate.save(botState)
   joypad.set(1, {A = true})
 
@@ -282,8 +324,11 @@ end
 function fishingBotLoop()
  local targetFishedSpeciesCheck = read8Bit(fishedSpeciesAddr) == botTargetFishingSpecies
 
+ local speciesAttempts = 0
  while not targetFishedSpeciesCheck do
-  fishingBotBiteLoop()
+  speciesAttempts = speciesAttempts + 1
+  if not botCanAttempt("species", speciesAttempts) then return false end
+  if not fishingBotBiteLoop() then return false end
   targetFishedSpeciesCheck = read8Bit(fishedSpeciesAddr) == botTargetFishingSpecies
 
   if not targetFishedSpeciesCheck then
@@ -302,7 +347,7 @@ end
 function fishingBot(pokemonDVsAddr)
  local key = joypad.get(1)
 
- if key.select then
+ if botRequested(key.select) then
   fishingBotLoop()
  end
 
@@ -329,7 +374,10 @@ function TIDBotLoop()
  TIDFound = false
  botOneTime = false
 
+ local tidAttempts = 0
  while not TIDFound do
+  tidAttempts = tidAttempts + 1
+  if not botCanAttempt("tid", tidAttempts) then return false end
   savestate.save(botState)
   joypad.set(1, {A = true})
 
@@ -372,7 +420,7 @@ end
 function TIDBot()
  local key = joypad.get(1)
 
- if key.select then
+ if botRequested(key.select) then
   TIDBotLoop()
  end
 

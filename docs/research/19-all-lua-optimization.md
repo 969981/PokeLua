@@ -64,3 +64,7 @@ date: 2026-11-10
 - Gen1：需状态机和可取消重试，但必须先保留原有 TID/闪光回放的成功概率与帧序列。
 
 证据状态：**源代码静态修改已就绪；离线 CI 通过后才能标记 UNIT_TESTED；真实模拟器 RUNTIME_NOT_OBSERVED。**
+
+## 更新（2026-11-10）：剩余六份中的五份已新增保守改造
+
+Gen1 两版增加默认关闭的重试上限与计数；Colosseum Light/Colosseum/XD 通过按实际输入缓存捕获率纯计算，并缩减重复填充字符串的工作。Ranch 保留游戏 Lua 原版，只使用只读探针。仓库当前目标为 25/26 游戏 Lua 有源码优化，剩余 Ranch 需真实 offer/no-offer 探针数据。详见 [[22-remaining-five-optimizations]]。上述仍不代表模拟器 16× 实测达标。

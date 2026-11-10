@@ -32,6 +32,7 @@ review_date: 2026-11-10
 - [[research/19-all-lua-optimization|19 26 份游戏 Lua 完整优化差异、测试与剩余关口]]
 - [[research/20-gen4-encounter-p2|20 Gen4 六份遇敌预测分片与原版对账]]
 - [[research/21-gen5-userdata-observer|21 Gen5 BW/B2W2 userdata 写入成本观测]]
+- [[research/22-remaining-five-optimizations|22 剩余五份实际优化及 Ranch 保守验收]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 

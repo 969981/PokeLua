@@ -198,20 +198,45 @@ function setPadding(maxLength, goodSpacing, stringVar)
 
  if stringVarLength <= maxLength then
   local padding = maxLength - stringVarLength
-
-  for i = 0, padding + goodSpacing do
-   spaces = spaces.." "
-  end
+  -- Equivalent to the inclusive 0..(padding+goodSpacing) loop, but
+  -- avoids repeated allocation/concatenation of the padding string.
+  spaces = string.rep(" ", math.max(0, padding + goodSpacing + 1))
  end
 
  return spaces
 end
 
+-- Derived catch-rate result is pure for its three inputs; cache the
+-- expensive nested square roots without skipping any dynamic RAM reads.
+-- Bound the memo to avoid unbounded growth across sessions/areas.
+local catchRateMemo, catchRateMemoSize = {}, 0
+local CATCH_RATE_MEMO_LIMIT = 256
+
 function calcCatchRate(HP, bonusBall, rate)
  if HP ~= 0 then
-  local a = (HP * rate * bonusBall) // (3 * HP)
+  local hpMemo = catchRateMemo[HP]
+  local ballMemo = hpMemo and hpMemo[bonusBall]
+  local value = ballMemo and ballMemo[rate]
+  if value ~= nil then return value end
 
-  return 1048560 // math.sqrt(math.sqrt(16711680 // a))
+  local a = (HP * rate * bonusBall) // (3 * HP)
+  local result = 1048560 // math.sqrt(math.sqrt(16711680 // a))
+  if catchRateMemoSize >= CATCH_RATE_MEMO_LIMIT then
+   catchRateMemo, catchRateMemoSize = {}, 0
+  end
+  hpMemo = catchRateMemo[HP]
+  if not hpMemo then
+   hpMemo = {}
+   catchRateMemo[HP] = hpMemo
+  end
+  ballMemo = hpMemo[bonusBall]
+  if not ballMemo then
+   ballMemo = {}
+   hpMemo[bonusBall] = ballMemo
+  end
+  ballMemo[rate] = result
+  catchRateMemoSize = catchRateMemoSize + 1
+  return result
  end
 
  return 0
