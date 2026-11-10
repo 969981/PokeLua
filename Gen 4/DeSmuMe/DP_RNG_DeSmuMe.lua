@@ -1133,13 +1133,14 @@ function getEncounterCheckValue(seed)
  return floor(rshift(seed, 16) / 0x290)
 end
 
-function getEncounterMissingSteps(movement, encounter)
+function getEncounterMissingSteps(movement, encounter, p2YieldStep)
  local currentCoolDownStepsAddr = read32Bit(pidPointerAddr) + 0x2FA40 + koreanOffset
  local currentCoolDownSteps = read8Bit(currentCoolDownStepsAddr)
  local wildEncounterSeed = read32Bit(currentSeedAddr)
  local missingSteps, coolDownSteps = 0, 0
 
  while not battleStartJumpFlag do
+  if p2YieldStep then p2YieldStep() end
   local isCoolDownEnded = true
 
   if not coolDownEndCheck(encounter, coolDownSteps, currentCoolDownSteps) then
@@ -1168,21 +1169,91 @@ function getEncounterMissingSteps(movement, encounter)
  return missingSteps + coolDownSteps, coolDownSteps
 end
 
+
+-- P2: chunk only the encounter prediction, never the exact RNG/event lane.
+-- The original getEncounterMissingSteps(movement, encounter) remains callable
+-- synchronously for golden-vector parity tests (p2YieldStep is optional).
+local P2_ENCOUNTER_ITERATIONS_PER_UPDATE = 64
+local p2EncounterJob = nil
+
+function resetEncounterPredictionP2()
+ p2EncounterJob = nil
+end
+
+function updateEncounterPredictionP2(pidAddr, mapAttr, movement, encounter)
+ local base = read32Bit(pidPointerAddr)
+ local currentCoolDown = read8Bit(base + 0x2FA40 + koreanOffset)
+ local currentSeed = read32Bit(currentSeedAddr)
+ local inBattle = battleStartJumpFlag
+ local job = p2EncounterJob
+
+ -- Every value capable of changing the predictor's result is part of the
+ -- snapshot. The seed and cooldown are checked even after a result is cached.
+ if not job or job.pidAddr ~= pidAddr or job.base ~= base
+       or job.mapAttr ~= mapAttr or job.movement ~= movement
+       or job.encounter ~= encounter or job.currentCoolDown ~= currentCoolDown
+       or job.seed ~= currentSeed or job.inBattle ~= inBattle then
+  job = { pidAddr = pidAddr, base = base, mapAttr = mapAttr,
+          movement = movement, encounter = encounter,
+          currentCoolDown = currentCoolDown, seed = currentSeed,
+          inBattle = inBattle }
+  p2EncounterJob = job
+
+  if inBattle then
+   job.steps, job.coolDown = 0, 0
+  elseif movement <= 0 or encounter <= 0 then
+   -- The upstream while-loop cannot find an encounter at zero probability.
+   -- Never invent a numeric prediction or block the emulator indefinitely.
+   job.unavailable = true
+  else
+   job.thread = coroutine.create(function()
+    local iterations = 0
+    return getEncounterMissingSteps(movement, encounter, function()
+     if iterations >= P2_ENCOUNTER_ITERATIONS_PER_UPDATE then
+      iterations = 0
+      coroutine.yield()
+     end
+     iterations = iterations + 1
+    end)
+   end)
+  end
+ end
+
+ -- Resume at most ONE chunk per display callback. Retain the partial RNG
+ -- cursor inside the coroutine, rather than restarting the loop every frame.
+ if job.thread then
+  local ok, steps, coolDown = coroutine.resume(job.thread)
+  if not ok then
+   job.unavailable = true
+   job.thread = nil
+  elseif coroutine.status(job.thread) == "dead" then
+   job.steps, job.coolDown = steps, coolDown
+   job.thread = nil
+  end
+ end
+
+ if job.unavailable then return nil, nil, "unavailable" end
+ if job.steps == nil then return nil, nil, "calculating" end
+ return job.steps, job.coolDown, "complete"
+end
+
 function showEncounterMissingSteps(pidAddr)
  local mapAttributeAddr = read32Bit(pidPointerAddr) + 0x31AE0 + koreanOffset
  local mapAttribute = read8Bit(mapAttributeAddr)
  local isEncounterArea = band(mapAttributeData[mapAttribute + 1], 0x2) ~= 0
- local encounterMissingSteps, coolDownSteps = 0, 0
+ local encounterMissingSteps, coolDownSteps, predictionState = 0, 0, "complete"
 
  if isEncounterArea then
   local movementRate = setMovementRate(mapAttribute)
   local encounterRate = setEncounterRate(mapAttribute, pidAddr)
-  encounterMissingSteps, coolDownSteps = getEncounterMissingSteps(movementRate, encounterRate)
+  encounterMissingSteps, coolDownSteps, predictionState = updateEncounterPredictionP2(pidAddr, mapAttribute, movementRate, encounterRate)
+ else
+  resetEncounterPredictionP2()
  end
 
  gui.box(1, -48, 176, -26, "#0000007F", "#0000007F")
- gui.text(2, -46, ("Encounters cooldown? "..(coolDownSteps == 0 and "No" or "Yes")))
- gui.text(2, -35, ("Steps for wild encounter: "..encounterMissingSteps))
+ gui.text(2, -46, ("Encounters cooldown? "..(coolDownSteps == nil and "Pending" or coolDownSteps == 0 and "No" or "Yes")))
+ gui.text(2, -35, ("Steps for wild encounter: "..(encounterMissingSteps == nil and (predictionState == "unavailable" and "N/A" or "Calculating") or tostring(encounterMissingSteps))))
 end
 
 function showPartyEggInfo(pidAddr)

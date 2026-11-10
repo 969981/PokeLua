@@ -1,0 +1,34 @@
+name: Gen4 encounter P2 static and Lua golden parity
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "Gen 4/BizHawk/**"
+      - "Gen 4/DeSmuMe/**"
+      - "tests/gen4/**"
+      - ".github/workflows/validate-gen4-p2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-rom-golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Lua 5.4
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+          lua5.4 -v
+      - name: Six game variants function-level parity and async budget
+        run: python tests/gen4/test_encounter_p2.py
+      - name: Scope statement
+        run: echo "OFFLINE_ONLY: no game ROM, BizHawk or DeSmuMe executed"
