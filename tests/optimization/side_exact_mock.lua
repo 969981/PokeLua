@@ -1,8 +1,9 @@
 -- No-ROM exact-lane simulation for three Gen3 mGBA Held Item side scripts.
 -- Usage: lua tests/optimization/side_exact_mock.lua <script-path>
 local path=assert(arg[1])
-local ver=path:find("/Side/E_Held",1,true) and 0x45
-          or path:find("/Side/FRLG_Held",1,true) and 0x52 or 0x56
+local game=assert(arg[2], "pass game name: E, FRLG or RS")
+assert(game=="E" or game=="FRLG" or game=="RS")
+local ver=game=="E" and 0x45 or game=="FRLG" and 0x52 or 0x56
 local frame,tick,seed=0,0,0xCAFE
 local prints=0
 local saveCalls=0

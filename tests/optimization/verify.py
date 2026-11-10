@@ -175,7 +175,7 @@ class SourceTests(unittest.TestCase):
                     orig=pathlib.Path(folder)/"original.lua"
                     orig.write_text(old(path),encoding="utf-8")
                     def execute(source):
-                        p=subprocess.run([binary,str(harness),str(source)],
+                        p=subprocess.run([binary,str(harness),str(source),path.rsplit("/",1)[1].split("_Held",1)[0]],
                                          text=True,capture_output=True)
                         self.assertEqual(p.returncode,0,p.stderr)
                         trace=p.stdout.split("\nPRINTS ",1)[0]
