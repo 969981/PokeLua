@@ -73,7 +73,13 @@ class SourceTests(unittest.TestCase):
 
     def test_no_unintended_changes_in_table_only_scripts(self):
         for p in OFFSET_PATHS:
-            if p in ("Gen 3/mGBA/E_RNG_mGBA.lua","Gen 3/mGBA/RS_RNG_mGBA.lua"):
+            if p in (
+                "Gen 3/mGBA/E_RNG_mGBA.lua",
+                "Gen 3/mGBA/RS_RNG_mGBA.lua",
+                "Gen 3/mGBA/Side/E_Held_Item_RNG_mGBA.lua",
+                "Gen 3/mGBA/Side/FRLG_Held_Item_RNG_mGBA.lua",
+                "Gen 3/mGBA/Side/RS_Held_Item_RNG_mGBA.lua"
+            ):
                 continue
             with self.subTest(p=p):
                 a=old(p); b=new(p); m=OFF_RX.search(a)
@@ -103,6 +109,20 @@ class SourceTests(unittest.TestCase):
                 self.assertEqual(pat.search(a).group(0),pat.search(b).group(0))
         self.assertIn('updateTIDBotLogic()',b)
         self.assertIn('p1LastTIDResult = tempTID',b)
+
+    def test_side_held_item_exact_lane_helpers(self):
+        for p in (
+            "Gen 3/mGBA/Side/E_Held_Item_RNG_mGBA.lua",
+            "Gen 3/mGBA/Side/FRLG_Held_Item_RNG_mGBA.lua",
+            "Gen 3/mGBA/Side/RS_Held_Item_RNG_mGBA.lua"
+        ):
+            with self.subTest(p=p):
+                a=old(p);b=new(p)
+                for fn in ("getRngInfo","getSaveStateInput"):
+                    pat=re.compile(r'function '+fn+r'\([^\n]*\)\n([\s\S]*?)\nend')
+                    self.assertEqual(pat.search(a).group(0),pat.search(b).group(0))
+                self.assertIn('p1First, p1Second, p1Third = getRngInfo()',b)
+                self.assertIn('if shouldRenderP1() then updateCaptureBuffer() end',b)
 
     def test_dolphin_preview_only_seed_functions(self):
         for p in DOLPHIN_PURE:
@@ -140,6 +160,31 @@ class SourceTests(unittest.TestCase):
                         return p.stdout
                     self.assertEqual(execute(orig),execute(ROOT/path))
 
+
+    def test_mgba_side_exact_lane_matches_baseline_on_mock(self):
+        binary=shutil.which("lua5.4") or shutil.which("lua") or shutil.which("texlua")
+        if not binary:self.skipTest("Lua runtime unavailable")
+        harness=ROOT/"tests/optimization/side_exact_mock.lua"
+        for path in (
+            "Gen 3/mGBA/Side/E_Held_Item_RNG_mGBA.lua",
+            "Gen 3/mGBA/Side/FRLG_Held_Item_RNG_mGBA.lua",
+            "Gen 3/mGBA/Side/RS_Held_Item_RNG_mGBA.lua"
+        ):
+            with self.subTest(path=path):
+                with tempfile.TemporaryDirectory() as folder:
+                    orig=pathlib.Path(folder)/"original.lua"
+                    orig.write_text(old(path),encoding="utf-8")
+                    def execute(source):
+                        p=subprocess.run([binary,str(harness),str(source)],
+                                         text=True,capture_output=True)
+                        self.assertEqual(p.returncode,0,p.stderr)
+                        trace=p.stdout.split("\nPRINTS ",1)[0]
+                        n=int(p.stdout.rsplit("\nPRINTS ",1)[1].strip())
+                        return trace,n
+                    a=execute(orig)
+                    b=execute(ROOT/path)
+                    self.assertEqual(a[0],b[0])
+                    self.assertLess(b[1],a[1])
 
     def test_mgba_e_and_rs_rng_input_bot_parity_on_mock(self):
         binary=shutil.which("lua5.4") or shutil.which("lua") or shutil.which("texlua")

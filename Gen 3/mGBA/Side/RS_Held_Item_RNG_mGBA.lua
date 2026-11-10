@@ -390,8 +390,10 @@ function getRngInfo()
  return timer, current, advances
 end
 
+-- P1 display snapshot; updateBuffers always observes RNG before rendering.
+local p1First, p1Second, p1Third = 0, 0, 0
 function showRngInfo(buffer)
- local paintingTimer, currentSeed, currentAdvances = getRngInfo()
+ local paintingTimer, currentSeed, currentAdvances = p1First, p1Second, p1Third
  buffer:clear()
  buffer:print(string.format("Initial Seed: %04X\nPainting Timer: %04X\nCurrent Seed: %08X\nAdvances: %d\n\n\n", initialSeed, paintingTimer, currentSeed, currentAdvances))
 end
@@ -669,11 +671,36 @@ function getSaveStateInput()
  end
 end
 
-function updateBuffers()
- if (not wrongGameVersion) then
-  updateCaptureBuffer()
-  getSaveStateInput()
+-- Exact RNG lane and approximately 10Hz console rendering; never gate savestate keys.
+local p1Tick, p1LastDraw, p1LastSecond, p1Anchor = 0, -100000, nil, 0
+local p1DrawEvery = 6
+
+function shouldRenderP1()
+ local second = os.time()
+ if p1LastSecond == nil or second < p1LastSecond then
+  p1LastSecond, p1Anchor = second, p1Tick
+ elseif second > p1LastSecond then
+  local elapsed = second - p1LastSecond
+  local rate = (p1Tick - p1Anchor) / elapsed
+  if elapsed > 3 then p1DrawEvery = 6
+  elseif rate > 0 then
+   p1DrawEvery = math.max(1, math.min(480, math.floor(rate / 10 + 0.5)))
+  end
+  p1LastSecond, p1Anchor = second, p1Tick
  end
+ if p1Tick - p1LastDraw >= p1DrawEvery then
+  p1LastDraw = p1Tick
+  return true
+ end
+ return false
+end
+
+function updateBuffers()
+ if wrongGameVersion then return end
+ p1Tick = p1Tick + 1
+ p1First, p1Second, p1Third = getRngInfo()
+ if shouldRenderP1() then updateCaptureBuffer() end
+ getSaveStateInput()
 end
 
 emu:reset()
