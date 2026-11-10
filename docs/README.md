@@ -18,6 +18,7 @@ review_date: 2026-11-10
 - [[research/05-p0-p4-roadmap|05 P0→P4 优化路线图]]
 - [[research/06-original-vs-optimized|06 原版／优化版比较]]
 - [[research/07-branch-sync-governance|07 main/develop 同步与开源维护]]
+- [[research/08-script-triage|08 26 份脚本逐文件性能分诊]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 
