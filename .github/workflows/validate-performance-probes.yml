@@ -1,0 +1,45 @@
+name: Lua performance probe offline validation
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "tests/rs_checksums/**"
+      - "tests/ranch/**"
+      - "Gen 3/mGBA/RS_RNG_Checksums_mGBA.lua"
+      - ".github/workflows/validate-performance-probes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-synthetic-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Lua 5.4 (ROM-free tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+          lua -v
+
+      - name: Python generator/report regression
+        run: python -m unittest discover -s tests/rs_checksums -p "test_real_suites.py" -v
+
+      - name: RS checksum 28-segment synthetic regression
+        run: lua tests/rs_checksums/cache_mock.lua "Gen 3/mGBA/RS_RNG_Checksums_mGBA.lua"
+
+      - name: Ranch no-offer read-only mock
+        run: python tests/ranch/test_probe.py
+
+      - name: Explicit scope
+        run: |
+          echo "OFFLINE_ONLY: no ROM, Dolphin or mGBA GUI session was executed."
