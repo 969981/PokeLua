@@ -455,12 +455,13 @@ function shinyCheck(PID, addr)
  return ""
 end
 
-function getOffset(offsetType, orderIndex)
- local offsets = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
+-- The block order map never changes; avoid allocating it on every lookup.
+local PK_BLOCK_OFFSETS = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
                   ["attack"] = {1,1,2,3,2,3, 0,0,0,0,0,0, 2,3,1,1,3,2, 2,3,1,1,3,2},
                   ["misc"]   = {3,2,3,2,1,1, 3,2,3,2,1,1, 3,2,3,2,1,1, 0,0,0,0,0,0}}
 
- return offsets[offsetType][orderIndex] * 12
+function getOffset(offsetType, orderIndex)
+ return PK_BLOCK_OFFSETS[offsetType][orderIndex] * 12
 end
 
 function getIVs(ivsValue)

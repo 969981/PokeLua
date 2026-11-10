@@ -1,0 +1,38 @@
+name: Validate all game Lua optimization invariants
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "Gen */**/*.lua"
+      - "tests/optimization/**"
+      - ".github/workflows/validate-all-lua-optimizations.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-and-mock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full Git history for baseline parity
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Lua 5.4 interpreter and compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+          lua -v
+          luac -v
+      - name: All 26 game Lua syntax + 15 offset maps + E/RS & Dolphin mock parity
+        run: python tests/optimization/verify.py
+      - name: Explain evidence
+        run: |
+          echo "OFFLINE_ONLY: syntax, maps, preview and mGBA exact-lane mocks."
+          echo "NOT a real mGBA/Dolphin/BizHawk/DeSmuMe gameplay or FPS test."

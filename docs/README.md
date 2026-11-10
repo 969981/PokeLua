@@ -29,6 +29,7 @@ review_date: 2026-11-10
 - [[research/16-rs-checksum-cache|16 RS 存档校验和缓存实施与测试]]
 - [[research/17-ranch-readonly-profile|17 Ranch 只读线程栈性能探针]]
 - [[research/18-rs-ranch-real-acceptance|18 RS 实机三组性能对照与 Ranch 赠送双场景验收]]
+- [[research/19-all-lua-optimization|19 26 份游戏 Lua 完整优化差异、测试与剩余关口]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 
@@ -42,6 +43,6 @@ review_date: 2026-11-10
 ## 当前快照
 - 实际检索：26 个 .lua，Gen1 2／Gen3 13／Gen4 7／Gen5 4。
 - 测试证据：已做全量静态代码扫描；尚无统一的 mGBA/Dolphin/BizHawk/DeSmuMe/VBA 跨平台实机 FPS 证据。
-- 本阶段提交文档与规划，不自动把未知兼容性的优化代码覆盖上游脚本。
+- 已在 develop 实施 FRLG P1、RS 校验和缓存，并为其余脚本实施有边界的批量优化；有实机依赖的高风险算法/时序仍保留原版，详见 [[research/19-all-lua-optimization]]。
 
 源：[`969981/PokeLua@main`](https://github.com/969981/PokeLua/tree/86918734caa9c05e995d23f315e1caafa6cfd7a2)、[`Real96/PokeLua`](https://github.com/Real96/PokeLua)。

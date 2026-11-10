@@ -458,8 +458,10 @@ function getRngInfo()
  return painting, current, advances
 end
 
+-- P1 display snapshot; exact lane updates it every emulated frame.
+local p1Painting, p1Seed, p1Advances = 0, 0, 0
 function showRngInfo(buffer)
- local paintingSeed, currentSeed, currentAdvances = getRngInfo()
+ local paintingSeed, currentSeed, currentAdvances = p1Painting, p1Seed, p1Advances
  buffer:clear()
  buffer:print(string.format("Initial Seed: %04X\nPainting Timer: %04X\nCurrent Seed: %08X\nAdvances: %d\n\n\n",
                             initialSeed, paintingSeed, currentSeed, currentAdvances))
@@ -503,12 +505,13 @@ function shinyCheck(PID, addr)
  return ""
 end
 
-function getOffset(offsetType, orderIndex)
- local offsets = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
+-- The block order map never changes; avoid allocating it on every lookup.
+local PK_BLOCK_OFFSETS = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
                   ["attack"] = {1,1,2,3,2,3, 0,0,0,0,0,0, 2,3,1,1,3,2, 2,3,1,1,3,2},
                   ["misc"]   = {3,2,3,2,1,1, 3,2,3,2,1,1, 3,2,3,2,1,1, 0,0,0,0,0,0}}
 
- return offsets[offsetType][orderIndex] * 12
+function getOffset(offsetType, orderIndex)
+ return PK_BLOCK_OFFSETS[offsetType][orderIndex] * 12
 end
 
 function getIVs(ivsValue)
@@ -731,7 +734,8 @@ end
 local prevKeyInfo, infoIndex, infoMode = {}, 1, {
       "Gift", "Party", "Party Stats", "Battle Party Stats", "Box", "1st Floor Box Stats", "2nd Floor Box Stats", "DayCare Box Stats"}
 
-function getInfoInput(buffer)
+-- Read the mode-change input every simulation frame.
+function pollInfoModeInput()
  local key = emu:getKeys()
 
  if key == 0x120 and prevKeyInfo ~= key then
@@ -741,6 +745,9 @@ function getInfoInput(buffer)
  end
 
  prevKeyInfo = key
+end
+
+function getInfoInput(buffer)
  buffer:print(string.format("Mode: %s(Change mode pressing R+Right/R+Left)\n\n", strPadding(infoMode[infoIndex], 20)))
 end
 
@@ -844,6 +851,7 @@ function TIDFoundCheck(TID)
 end
 
 local currentEmuFrame, insertionNameState
+local p1LastTIDResult
 local TIDBotStartedFlag, TIDFoundFlag = false, false
 
 function TIDBotLoop()
@@ -868,25 +876,33 @@ function TIDBotLoop()
    currentEmuFrame = emu:currentFrame()
   end
 
-  TIDBotInfo:clear()
-  TIDBotInfo:print(string.format("TID: %d", tempTID))
+  -- Keep the latest result for low-frequency UI refresh.
+  p1LastTIDResult = tempTID
+ end
+end
+
+function updateTIDBotLogic()
+ if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.START) == 1 and not TIDBotStartedFlag then  -- Check if Shift + START is being pressed
+  TIDBotStartedFlag = true
+  TIDFoundFlag = false
+  initialSeedWrittenFlag = false
+  p1LastTIDResult = nil
+  currentEmuFrame = emu:currentFrame()
+ end
+
+ if TIDBotStartedFlag then
+  TIDBotLoop()
  end
 end
 
 function updateTIDBotBuffer()
  if not TIDBotStartedFlag then
   printTIDBotInstructions()
- end
-
- if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.START) == 1 and not TIDBotStartedFlag then  -- Check if Shift + START is being pressed
-  TIDBotStartedFlag = true
-  TIDFoundFlag = false
-  initialSeedWrittenFlag = false
-  currentEmuFrame = emu:currentFrame()
- end
-
- if TIDBotStartedFlag then
-  TIDBotLoop()
+ else
+  TIDBotInfo:clear()
+  if p1LastTIDResult ~= nil then
+   TIDBotInfo:print(string.format("TID: %d", p1LastTIDResult))
+  end
  end
 
  if TIDFoundFlag then
@@ -1009,16 +1025,51 @@ function getSaveStateInput()
  end
 end
 
-function updateBuffers()
- if (not wrongGameVersion) then
+-- Exact lane executes once per emulated frame. UI uses a real-time estimate.
+local p1Tick, p1LastRenderTick, p1LastSecond, p1AnchorTick = 0, -100000, nil, 0
+local p1RenderEvery = 6
+local P1_UI_HZ = 10
+
+function shouldRenderP1()
+ local second = os.time()
+ if p1LastSecond == nil or second < p1LastSecond then
+  p1LastSecond, p1AnchorTick = second, p1Tick
+ elseif second > p1LastSecond then
+  local elapsed = second - p1LastSecond
+  local rate = (p1Tick - p1AnchorTick) / elapsed
+  if elapsed > 3 then
+   p1RenderEvery = 6
+  elseif rate > 0 then
+   p1RenderEvery = math.max(1, math.min(480, math.floor(rate / P1_UI_HZ + 0.5)))
+  end
+  p1LastSecond, p1AnchorTick = second, p1Tick
+ end
+ if p1Tick - p1LastRenderTick >= p1RenderEvery then
+  p1LastRenderTick = p1Tick
+  return true
+ end
+ return false
+end
+
+function renderBuffersP1()
   updateCaptureBuffer()
   updateBreedingBuffer()
   updateRoamerBuffer()
   updatePandoraBuffer()
   updateTIDBotBuffer()
   updatePokemonInfoBuffer()
-  getSaveStateInput()
- end
+end
+
+function updateBuffers()
+ if wrongGameVersion then return end
+ p1Tick = p1Tick + 1
+ p1Painting, p1Seed, p1Advances = getRngInfo()
+ updateTIDBotLogic()
+ -- Update after a Bot-induced save-state rewind, as upstream final UI did.
+ p1Painting, p1Seed, p1Advances = getRngInfo()
+ pollInfoModeInput()
+ if shouldRenderP1() then renderBuffersP1() end
+ getSaveStateInput()
 end
 
 emu:reset()

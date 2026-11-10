@@ -134,7 +134,10 @@ function getCelebiInfo(seed)
  return info
 end
 
+local previewCachedSeed, previewCachedText = nil, nil
+
 function onScriptStart()
+ previewCachedSeed, previewCachedText = nil, nil
  initialSeed = 0
  prevInitialSeed = 0
  tempCurrentSeed = 0
@@ -142,11 +145,16 @@ function onScriptStart()
  advances = 0
 end
 
+-- Seed-derived preview is pure; no need to recompute if RNG has not moved.
 function onScriptUpdate()
  local currentSeed = read32Bit(0x477098)
  getInitialSeeding(currentSeed)
  advances = advances + LCRNGDistance(tempCurrentSeed, currentSeed)
- local celebiInfo = getCelebiInfo(currentSeed)
+ if previewCachedSeed ~= currentSeed then
+  previewCachedText = getCelebiInfo(currentSeed)
+  previewCachedSeed = currentSeed
+ end
+ local celebiInfo = previewCachedText
  local text = string.format("Visual Advances: %d\n\nInitial Seed: %08X\nCurrent Seed: %08X\nAdvances: %d\n\nCelebi Info:\n%s",
                             GetFrameCount(), initialSeed, currentSeed, advances, celebiInfo)
  SetScreenText(text)

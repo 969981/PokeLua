@@ -116,7 +116,10 @@ end
 
 local currentSeedAddr, initialSeed, advances
 
+local previewCachedSeed, previewCachedText = nil, nil
+
 function onScriptStart()
+ previewCachedSeed, previewCachedText = nil, nil
  local gameLang = read8Bit(0x3)
 
  if gameLang == 0x45 then  -- U
@@ -134,10 +137,15 @@ function onScriptStart()
  advances = 0
 end
 
+-- Seed-derived preview is pure; no need to recompute if RNG has not moved.
 function onScriptUpdate()
  local currentSeed = read32Bit(currentSeedAddr)
  advances = advances + LCRNGDistance(tempCurrentSeed, currentSeed)
- local jirachiInfo = getJirachiInfo(currentSeed)
+ if previewCachedSeed ~= currentSeed then
+  previewCachedText = getJirachiInfo(currentSeed)
+  previewCachedSeed = currentSeed
+ end
+ local jirachiInfo = previewCachedText
  local text = string.format("Initial Seed: %08X\nCurrent Seed: %08X\nAdvances: %d\n\nJirachi Info:\n%s",
                             initialSeed, currentSeed, advances, jirachiInfo)
  SetScreenText(text)

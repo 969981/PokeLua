@@ -134,7 +134,10 @@ function getPikachuInfo(seed)
  return info
 end
 
+local previewCachedSeed, previewCachedText = nil, nil
+
 function onScriptStart()
+ previewCachedSeed, previewCachedText = nil, nil
  initialSeed = 0
  prevInitialSeed = 0
  tempCurrentSeed = 0
@@ -142,11 +145,16 @@ function onScriptStart()
  advances = 0
 end
 
+-- Seed-derived preview is pure; no need to recompute if RNG has not moved.
 function onScriptUpdate()
  local currentSeed = read32Bit(0x477098)
  getInitialSeeding(currentSeed)
  advances = advances + LCRNGDistance(tempCurrentSeed, currentSeed)
- local pikachuInfo = getPikachuInfo(currentSeed)
+ if previewCachedSeed ~= currentSeed then
+  previewCachedText = getPikachuInfo(currentSeed)
+  previewCachedSeed = currentSeed
+ end
+ local pikachuInfo = previewCachedText
  local text = string.format("Visual Advances: %d\n\nInitial Seed: %08X\nCurrent Seed: %08X\nAdvances: %d\n\nPikachu Info:\n%s",
                             GetFrameCount(), initialSeed, currentSeed, advances, pikachuInfo)
  SetScreenText(text)

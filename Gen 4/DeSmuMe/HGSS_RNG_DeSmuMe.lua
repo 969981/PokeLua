@@ -767,11 +767,12 @@ function getSlotInput()
  return slotIndex
 end
 
-function getOffset(offsetType, orderIndex)
- local offsets = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
+-- The block order map never changes; avoid allocating it on every lookup.
+local PK_BLOCK_OFFSETS = {["growth"] = {0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3},
                   ["attack"] = {1,1,2,3,2,3, 0,0,0,0,0,0, 2,3,1,1,3,2, 2,3,1,1,3,2}}
 
- return offsets[offsetType][orderIndex]
+function getOffset(offsetType, orderIndex)
+ return PK_BLOCK_OFFSETS[offsetType][orderIndex]
 end
 
 function shinyCheck(PID, trainerTID, trainerSID)
