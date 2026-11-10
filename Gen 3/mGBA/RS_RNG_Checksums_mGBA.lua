@@ -139,20 +139,57 @@ function showTargetInfo(buffer, textSpeedOptionIndex, checksum)
  buffer:print(string.format("Segment 0 Checksum Seed: %04X\n", checksum))
 end
 
-function getChecksumsList()
- local saveFile = assert(io.open(savePath, "rb"))
- local bytes = saveFile:read(0x20000)
- local startingChecksumBlockSaveAddr = 0xFF7
- local checksumsList = {}
- saveFile:close()
+-- Cache only the on-disk checksum snapshot. Live RNG, RTC and SaveBlock data
+-- remain frame-driven. The backing .sav may lag in-emulator memory until saved.
+local CHECKSUM_FILE_POLL_SECONDS = 1
+local checksumFileCache = {
+ lastAttemptSecond = nil,
+ checksums = nil,
+ error = "Awaiting first save-file poll"
+}
 
- for i = 0, 0x1B do
-  local segmentChecksumAddr = startingChecksumBlockSaveAddr + (i * 0x1000)
-  local checksum = string.format("%02X%02X\n", bytes:byte(segmentChecksumAddr + 1), bytes:byte(segmentChecksumAddr))
-  table.insert(checksumsList, checksum)
+function invalidateChecksumsCache()
+ checksumFileCache.lastAttemptSecond = nil
+end
+
+function getChecksumsList()
+ local now = os.time()
+ local last = checksumFileCache.lastAttemptSecond
+
+ -- When the host clock moves backward, refresh instead of locking the cache.
+ if last ~= nil and now >= last and now - last < CHECKSUM_FILE_POLL_SECONDS then
+  return checksumFileCache.checksums, checksumFileCache.error
  end
 
- return checksumsList
+ checksumFileCache.lastAttemptSecond = now
+ local saveFile = io.open(savePath, "rb")
+ if not saveFile then
+  checksumFileCache.checksums = nil
+  checksumFileCache.error = "Save file missing or inaccessible"
+  return nil, checksumFileCache.error
+ end
+
+ local bytes = saveFile:read(0x20000)
+ saveFile:close()
+
+ -- The last 16-bit checksum accesses byte indices 0x1BFF7/0x1BFF8.
+ if not bytes or #bytes < 0x1BFF8 then
+  checksumFileCache.checksums = nil
+  checksumFileCache.error = "Save file is too short"
+  return nil, checksumFileCache.error
+ end
+
+ local startingChecksumBlockSaveAddr = 0xFF7
+ local checksumsList = {}
+ for i = 0, 0x1B do
+  local segmentChecksumAddr = startingChecksumBlockSaveAddr + (i * 0x1000)
+  -- Preserve the original byte order, the trailing newline, and all 28 entries.
+  checksumsList[i + 1] = string.format("%02X%02X\n", bytes:byte(segmentChecksumAddr + 1), bytes:byte(segmentChecksumAddr))
+ end
+
+ checksumFileCache.checksums = checksumsList
+ checksumFileCache.error = nil
+ return checksumsList, nil
 end
 
 function getCurrentXORChecksumSeed(checksumsList)
@@ -268,11 +305,16 @@ end
 
 function updateTENANNIVBuffer(buffer, textSpeedIndex, checksumSeed)
  showTargetInfo(buffer, textSpeedIndex, checksumSeed)
- local checksums = getChecksumsList()
- local currectXORChecksumSeed = getCurrentXORChecksumSeed(checksums)
- local segment0TargetSeed = currectXORChecksumSeed ~ checksumSeed ~ targetSeed
- buffer:print(string.format("Current Checksum Seed: %04X\n\n", currectXORChecksumSeed))
- buffer:print(string.format("Target Segment 0 Checksum Seed: %04X", segment0TargetSeed))
+ local checksums, cacheError = getChecksumsList()
+ if checksums then
+  local currectXORChecksumSeed = getCurrentXORChecksumSeed(checksums)
+  local segment0TargetSeed = currectXORChecksumSeed ~ checksumSeed ~ targetSeed
+  buffer:print(string.format("Current Checksum Seed: %04X\n\n", currectXORChecksumSeed))
+  buffer:print(string.format("Target Segment 0 Checksum Seed: %04X", segment0TargetSeed))
+  buffer:print("\nSave-file snapshot: polled every 1s (may lag unsaved game RAM)")
+ else
+  buffer:print("Save-file checksum unavailable: "..(cacheError or "Unknown error"))
+ end
 end
 
 function updateTrainerInfoBuffer(buffer)
@@ -288,7 +330,13 @@ function updateSaveInfoBuffer(buffer)
 end
 
 function updateChecksumsBuffer(buffer)
- showAllChecksums(buffer, getChecksumsList())
+ local checksums, cacheError = getChecksumsList()
+ if checksums then
+  showAllChecksums(buffer, checksums)
+ else
+  buffer:clear()
+  buffer:print("Save-file checksum unavailable: "..(cacheError or "Unknown error"))
+ end
 end
 
 function updateBuffers()

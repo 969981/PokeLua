@@ -41,3 +41,8 @@ review_date: 2026-11-10
 下一步应先为 **RS_RNG_Checksums_mGBA.lua** 编写“仿真保存数据变动/校验和变动/找不到文件”的测试与最小化缓存补丁；同时给 Ranch 增加不改变行为的迭代计数探针。两项目都不触碰底层 RNG 算法，风险比同时重写所有 Lua 小。
 
 详见各分世代函数级审计，原版固定源码：[969981/PokeLua@86918734](https://github.com/969981/PokeLua/tree/86918734caa9c05e995d23f315e1caafa6cfd7a2)。
+
+## 2026-11-10 实施状态
+
+- RS checksum：已新增 1 秒文件缓存和缺失/短文件错误状态，见 [[16-rs-checksum-cache]]。ROM+模拟器真实吞吐未测。
+- Ranch：已添加与原版分离的只读栈扫描探针生成器及合成 Mock，见 [[17-ranch-readonly-profile]]。真实 Dolphin 栈扫描成本未测，原游戏 Lua 未修改。

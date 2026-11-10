@@ -26,6 +26,8 @@ review_date: 2026-11-10
 - [[research/13-gen5-ds-hotspots|13 Gen5 BW/B2W2 RNG 与持久化成本]]
 - [[research/14-gen1-dolphin-hotspots|14 Gen1 Bot 与 Dolphin/Ranch 栈扫描]]
 - [[research/15-other-scripts-roadmap|15 其余 25 脚本优化优先级与验收]]
+- [[research/16-rs-checksum-cache|16 RS 存档校验和缓存实施与测试]]
+- [[research/17-ranch-readonly-profile|17 Ranch 只读线程栈性能探针]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 
