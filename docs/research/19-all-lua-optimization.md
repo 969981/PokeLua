@@ -43,6 +43,12 @@ date: 2026-11-10
 - [`tests/optimization/mgba_exact_mock.lua`](../../tests/optimization/mgba_exact_mock.lua)：对 E/RS 的 240 帧模拟回调比较 RNG Advances、模式按键边沿及 Emerald TID Bot Watchpoint、保存、重试/命中操作轨迹，同时比对窗口打印次数。它是 Mock，不能代替真实 mGBA 结果。
 - 运行：`python tests/optimization/verify.py`（Python、Git、Lua 5.4/luac，且 checkout 的本地仓库含 baseline git commit）。
 
+## 原版已存在的 Dolphin IV 类型问题（独立正确性议题）
+
+在 Ageto／Channel／Colo Pikachu 三个上游脚本里，`getIVs()` 使用 `string.format("%02d", ...)` 返回补零字符串，随后这些字符串被传给 `getHPTypeAndPower()` 的位运算。Lua 5.4 对部分补零字符串（例如 `"08"`、`"09"`）可能拒绝位运算并报错。该问题在本轮缓存优化前的原版源码中就存在。
+
+离线纯预览 Mock 会对**原版与优化版两边**统一将 Hidden Power 计算参数转成数字；不会改动两个源码，也不会改变展示中的 IV 文本格式。由此通过的输出等价只证明缓存改造未带来额外差异，**不代表这三个原版已修复数值类型问题或 Dolphin 实机完全兼容**。建议单开 correctness PR，通过六项 IV 的 00–31 完整向量后再处理。
+
 ## 运行时 Gate
 1. **mGBA E/RS**：同一 ROM/存档及输入录像，在 1×/4×/8×/16× 对照 RNG Advances、R+左右、9 个 Slot 的 Savestate、E TID 成功/失败写入事件、实时 Console 稳定性和实际吞吐。
 2. **Gen4/5 BizHawk/DeSmuMe**：相同 24 档加密区块解析结果、真实 PK3/4/5、MT/RNG、C-Gear/遇敌预测完全相同；需确认标准模拟器 Lua 环境实际兼容文件级常量。

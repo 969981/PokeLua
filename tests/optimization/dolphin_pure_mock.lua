@@ -13,6 +13,16 @@ ReadValue32=function() return testSeed end
 GetFrameCount=function() return frame end
 SetScreenText=function(s) lastScreen=s end
 dofile(path)
+-- The three upstream scripts pass zero-padded IV strings into bitwise HP
+-- calculations. Lua 5.4 may reject "08"/"09" as bitwise operands.
+-- Apply the SAME type normalization in BOTH control and optimized copies,
+-- preserving the original formatted IV text and isolating only cache parity.
+local oldHP = assert(getHPTypeAndPower)
+getHPTypeAndPower = function(...)
+ local n = {...}
+ for i = 1, #n do n[i] = assert(tonumber(n[i])) end
+ return oldHP(table.unpack(n))
+end
 assert(type(onScriptStart)=="function")
 assert(type(onScriptUpdate)=="function")
 onScriptStart()
