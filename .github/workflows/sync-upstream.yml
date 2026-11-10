@@ -1,0 +1,136 @@
+# Follow Real96/PokeLua and publish a downloadable Lua scripts ZIP per upstream commit.
+name: Sync upstream and publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-upstream.yml'
+  schedule:
+    - cron: '13 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pokelua-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Check out mirror with full history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge upstream main if new commits are found
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/Real96/PokeLua.git
+          git fetch --no-tags upstream main
+          upstream_sha=$(git rev-parse refs/remotes/upstream/main)
+          short=$(printf '%s' "$upstream_sha" | cut -c1-12)
+          echo "sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+          echo "tag=sync-$short" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor "$upstream_sha" HEAD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already synchronized: $upstream_sha"
+          else
+            before=$(git rev-parse HEAD)
+            git merge --no-ff --no-commit upstream/main
+            # GITHUB_TOKEN lacks workflow-file write permission.
+            git restore --source="$before" --staged --worktree -- .github/workflows
+            git commit -m "chore(sync): merge Real96/PokeLua $upstream_sha"
+            git push origin HEAD:main
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Merged upstream main: $upstream_sha"
+          fi
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Detect already-published snapshot
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.upstream.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists; skipping"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package Lua scripts and SHA-256
+        if: steps.release.outputs.already_published == 'false'
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.upstream.outputs.tag }}"
+          tmp=$(mktemp -d)
+          mkdir -p "$tmp/PokeLua"
+          git archive --format=tar HEAD | tar -xf - -C "$tmp/PokeLua"
+          rm -rf "$tmp/PokeLua/.github"
+          test -f "$tmp/PokeLua/README.md"
+          test -d "$tmp/PokeLua/Gen 3"
+          test -d "$tmp/PokeLua/Gen 5"
+
+          asset="PokeLua-$tag-scripts.zip"
+          (cd "$tmp" && zip -q -r -9 "$GITHUB_WORKSPACE/$asset" PokeLua)
+          unzip -tq "$asset" >/dev/null
+          sha256sum "$asset" > SHA256SUMS.txt
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "Packaged $(find "$tmp/PokeLua" -type f | wc -l) files"
+
+      - name: Publish per-commit prerelease
+        if: steps.release.outputs.already_published == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.upstream.outputs.tag }}"
+          upstream_sha="${{ steps.upstream.outputs.sha }}"
+          build_sha="${{ steps.upstream.outputs.build_sha }}"
+          asset="${{ steps.package.outputs.asset }}"
+          {
+            echo "Automated PokeLua mirror snapshot."
+            echo
+            echo "- Upstream: https://github.com/Real96/PokeLua"
+            echo "- Upstream main commit: $upstream_sha"
+            echo "- Mirror commit: $build_sha"
+            echo "- Contents: Gen 1 / Gen 3 / Gen 4 / Gen 5 Lua scripts, README and LICENSE."
+            echo "- Extract ZIP and load the relevant Lua script in a compatible emulator."
+            echo
+            echo "This is a mirror prerelease, not an official upstream release."
+            echo "SHA256SUMS.txt verifies the archive."
+          } > release-notes.md
+          gh release create "$tag" "$asset" SHA256SUMS.txt \
+            --target "$build_sha" \
+            --title "PokeLua snapshot $tag" \
+            --notes-file release-notes.md \
+            --prerelease --latest=false
+
+      - name: Summary
+        if: always() && steps.upstream.outcome == 'success'
+        shell: bash
+        run: |
+          {
+            echo "## PokeLua upstream sync"
+            echo "- Upstream commit: ${{ steps.upstream.outputs.sha }}"
+            echo "- New commits merged: ${{ steps.upstream.outputs.changed }}"
+            echo "- Snapshot: ${{ steps.upstream.outputs.tag }}"
+            echo "- Already published: ${{ steps.release.outputs.already_published }}"
+            echo "- Releases: https://github.com/$GITHUB_REPOSITORY/releases"
+          } >> "$GITHUB_STEP_SUMMARY"
