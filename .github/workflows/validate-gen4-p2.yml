@@ -31,4 +31,5 @@ jobs:
       - name: Six game variants function-level parity and async budget
         run: python tests/gen4/test_encounter_p2.py
       - name: Scope statement
-        run: echo "OFFLINE_ONLY: no game ROM, BizHawk or DeSmuMe executed"
+        run: |
+          echo "OFFLINE_ONLY: no game ROM, BizHawk or DeSmuMe executed"
