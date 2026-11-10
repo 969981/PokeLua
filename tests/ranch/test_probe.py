@@ -35,7 +35,11 @@ class RanchProbe(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp=Path(tmp)
             original=SCRIPT.read_text(encoding='utf-8')
-            optimized=module.build(original,tmp/'scan.tsv',5)
+            scanLog=tmp/'scan.tsv'
+            optimized=module.build(original,scanLog,5)
+            # module.build() returns source only. The CLI normally writes this
+            # header; this unit test must initialize it before simulated updates.
+            scanLog.write_text('updates\tscans\tfound\tthreads\tstack_frames\tread32_calls\tscan_cpu_s\tmax_scan_cpu_s\n',encoding='utf-8')
             originalPath=tmp/'original.lua'
             generatedPath=tmp/'probe.lua'
             originalPath.write_text(original,encoding='utf-8')
