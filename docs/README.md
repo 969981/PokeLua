@@ -21,6 +21,11 @@ review_date: 2026-11-10
 - [[research/08-script-triage|08 26 份脚本逐文件性能分诊]]
 - [[research/09-frlg-p1-implementation|09 FRLG P1 调度器实施与 Mock 对账]]
 - [[research/10-frlg-real-mgba-gate|10 FRLG P1 真实 mGBA 1×–16× 验收工具与门槛]]
+- [[research/11-gen3-mgba-other-hotspots|11 其他 Gen3 mGBA 逐帧和文件 I/O 热点]]
+- [[research/12-gen4-ds-hotspots|12 Gen4 DP/Pt/HGSS 遇敌循环与绘制]]
+- [[research/13-gen5-ds-hotspots|13 Gen5 BW/B2W2 RNG 与持久化成本]]
+- [[research/14-gen1-dolphin-hotspots|14 Gen1 Bot 与 Dolphin/Ranch 栈扫描]]
+- [[research/15-other-scripts-roadmap|15 其余 25 脚本优化优先级与验收]]
 - [[templates/research-record|研究记录模板]]
 - [[auto-sync|现有上游同步机制（保留）]]
 
