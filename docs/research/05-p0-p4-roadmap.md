@@ -8,7 +8,7 @@ source_commit: 86918734caa9c05e995d23f315e1caafa6cfd7a2
 [[../README]] · [[04-benchmark-protocol]] · [[07-branch-sync-governance]]
 
 ## 原则
-本阶段只对 `develop` 做研究文档及测试基础准备；先保持原版函数语义，优化证明通过后才逐平台迁移。按 **P0→P1→P2→P3→P4** 走，每阶段通过 Gate 才进入下一阶段。
+本阶段在 `develop` 已完成 FRLG P1 首轮调度器代码改造，并提供 Mock 回归测试；实际 mGBA 性能与 ROM 兼容性仍未观察。先保持原版函数语义，优化证明通过后再逐平台迁移。详见 [[09-frlg-p1-implementation]]。按 **P0→P1→P2→P3→P4** 走，每阶段通过 Gate 才进入下一阶段。
 
 | 阶段 | 实施事项 | 交付物 | Gate |
 |---|---|---|---|

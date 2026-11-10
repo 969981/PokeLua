@@ -479,8 +479,11 @@ function getRngInfo()
  return initial, current, advances
 end
 
+-- P1: cached once per simulation callback; UI must never advance the tracker.
+local p1InitialSeed, p1CurrentSeed, p1Advances = 0, 0, 0
+
 function showRngInfo(buffer)
- local initialSeed, currentSeed, currentAdvances = getRngInfo()
+ local initialSeed, currentSeed, currentAdvances = p1InitialSeed, p1CurrentSeed, p1Advances
  buffer:clear()
  buffer:print(string.format("Initial Seed: %04X\nCurrent Seed: %08X\nAdvances: %d\n\n\n", initialSeed, currentSeed, currentAdvances))
 end
@@ -832,7 +835,8 @@ end
 local prevKeyInfo, infoIndex, infoMode = {}, 1, {
       "Gift", "Party", "Party Stats", "Battle Party Stats", "Box", "1st Floor Box Stats", "2nd Floor Box Stats", "DayCare Box Stats"}
 
-function getInfoInput(buffer)
+-- Poll this input once per simulated frame, even when the UI is throttled.
+function pollInfoModeInput()
  local key = emu:getKeys()
 
  if key == 0x120 and prevKeyInfo ~= key then
@@ -842,6 +846,9 @@ function getInfoInput(buffer)
  end
 
  prevKeyInfo = key
+end
+
+function getInfoInput(buffer)
  buffer:print(string.format("Mode: %s(Change mode pressing R+Right/R+Left)\n\n", strPadding(infoMode[infoIndex], 20)))
 end
 
@@ -941,6 +948,7 @@ function initialSeedFoundCheck(initialSeed)
 end
 
 local currentEmuFrame, continueScreen
+local p1LastInitialSeedResult
 local initialSeedBotStartedFlag, initialSeedFoundFlag = false, false
 
 function initialSeedBotLoop()
@@ -978,25 +986,33 @@ function initialSeedBotLoop()
    currentEmuFrame = emu:currentFrame()
   end
 
-  InitialSeedBotInfo:clear()
-  InitialSeedBotInfo:print(string.format("Initial Seed: %04X", tempInitialSeed))
+  -- Display only; no effect on Watchpoint, keys or savestate lifecycle.
+  p1LastInitialSeedResult = tempInitialSeed
+ end
+end
+
+function updateInitialSeedBotLogic()
+ if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.SELECT) == 1 and not initialSeedBotStartedFlag then  -- Check if Shift + SELECT is being pressed
+  initialSeedBotStartedFlag = true
+  initialSeedFoundFlag = false
+  initialSeedWrittenFlag = false
+  p1LastInitialSeedResult = nil
+  currentEmuFrame = emu:currentFrame()
+ end
+
+ if initialSeedBotStartedFlag then
+  initialSeedBotLoop()
  end
 end
 
 function updateInitialSeedBotBuffer()
  if not initialSeedBotStartedFlag then
   printInitialSeedBotInstructions()
- end
-
- if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.SELECT) == 1 and not initialSeedBotStartedFlag then  -- Check if Shift + SELECT is being pressed
-  initialSeedBotStartedFlag = true
-  initialSeedFoundFlag = false
-  initialSeedWrittenFlag = false
-  currentEmuFrame = emu:currentFrame()
- end
-
- if initialSeedBotStartedFlag then
-  initialSeedBotLoop()
+ else
+  InitialSeedBotInfo:clear()
+  if p1LastInitialSeedResult ~= nil then
+   InitialSeedBotInfo:print(string.format("Initial Seed: %04X", p1LastInitialSeedResult))
+  end
  end
 
  if initialSeedFoundFlag then
@@ -1024,6 +1040,7 @@ function TIDFoundCheck(TID)
 end
 
 local insertionNameState
+local p1LastTIDResult
 local TIDBotStartedFlag, TIDFoundFlag = false, false
 
 function TIDBotLoop()
@@ -1048,25 +1065,33 @@ function TIDBotLoop()
    currentEmuFrame = emu:currentFrame()
   end
 
-  TIDBotInfo:clear()
-  TIDBotInfo:print(string.format("TID: %d", tempTID))
+  -- Display only; no effect on Watchpoint, keys or savestate lifecycle.
+  p1LastTIDResult = tempTID
+ end
+end
+
+function updateTIDBotLogic()
+ if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.START) == 1 and not TIDBotStartedFlag then  -- Check if Shift + START is being pressed
+  TIDBotStartedFlag = true
+  TIDFoundFlag = false
+  initialSeedWrittenFlag = false
+  p1LastTIDResult = nil
+  currentEmuFrame = emu:currentFrame()
+ end
+
+ if TIDBotStartedFlag then
+  TIDBotLoop()
  end
 end
 
 function updateTIDBotBuffer()
  if not TIDBotStartedFlag then
   printTIDBotInstructions()
- end
-
- if input:isKeyActive(8388658) and emu:getKey(C.GBA_KEY.START) == 1 and not TIDBotStartedFlag then  -- Check if Shift + START is being pressed
-  TIDBotStartedFlag = true
-  TIDFoundFlag = false
-  initialSeedWrittenFlag = false
-  currentEmuFrame = emu:currentFrame()
- end
-
- if TIDBotStartedFlag then
-  TIDBotLoop()
+ else
+  TIDBotInfo:clear()
+  if p1LastTIDResult ~= nil then
+   TIDBotInfo:print(string.format("TID: %d", p1LastTIDResult))
+  end
  end
 
  if TIDFoundFlag then
@@ -1190,17 +1215,68 @@ function getSaveStateInput()
  end
 end
 
-function updateBuffers()
- if (not wrongGameVersion) then
-  updateCaptureBuffer()
-  updateBreedingBuffer()
-  updateRoamerBuffer()
-  updatePandoraBuffer()
-  updateInitialSeedBotBuffer()
-  updateTIDBotBuffer()
-  updatePokemonInfoBuffer()
-  getSaveStateInput()
+-- P1: Lua callback count and the emulator frame counter are distinct clocks.
+-- os.time has 1-second resolution: measure callback rate by elapsed real time
+-- and adapt the display interval without ever skipping RNG/keyboard/Bot events.
+local P1_TARGET_UI_HZ = 10
+local p1Tick = 0
+local p1LastRenderTick = -1000000
+local p1AnchorSecond, p1AnchorTick = nil, 0
+local p1RenderInterval = 6 -- ~10 Hz at 1x; self-calibrates for 2x-16x.
+
+function shouldRenderP1()
+ local second = os.time()
+ if p1AnchorSecond == nil or second < p1AnchorSecond then
+  p1AnchorSecond, p1AnchorTick = second, p1Tick
+ elseif second > p1AnchorSecond then
+  local elapsed = second - p1AnchorSecond
+  local measuredRate = (p1Tick - p1AnchorTick) / elapsed
+  if elapsed > 3 then -- Pause, debugger stop or long host interruption.
+   p1RenderInterval = 6
+  elseif measuredRate > 0 then
+   p1RenderInterval = math.max(1, math.min(480, math.floor(measuredRate / P1_TARGET_UI_HZ + 0.5)))
+  end
+  p1AnchorSecond, p1AnchorTick = second, p1Tick
  end
+
+ if p1Tick - p1LastRenderTick >= p1RenderInterval then
+  p1LastRenderTick = p1Tick
+  return true
+ end
+ return false
+end
+
+function renderBuffersP1()
+ updateCaptureBuffer()
+ updateBreedingBuffer()
+ updateRoamerBuffer()
+ updatePandoraBuffer()
+ updateInitialSeedBotBuffer()
+ updateTIDBotBuffer()
+ updatePokemonInfoBuffer()
+end
+
+function updateBuffers()
+ if wrongGameVersion then return end
+
+ -- EXACT: invoked once each emulated frame, regardless of the UI interval.
+ p1Tick = p1Tick + 1
+ p1InitialSeed, p1CurrentSeed, p1Advances = getRngInfo()
+ updateInitialSeedBotLogic()
+ updateTIDBotLogic()
+ -- The upstream fifth showRngInfo runs after the bots: it observes a
+ -- possible saveStateBuffer rewind within this same frame. Preserve that
+ -- tracker update here even if the render interval has not elapsed.
+ p1InitialSeed, p1CurrentSeed, p1Advances = getRngInfo()
+ pollInfoModeInput()
+
+ -- DISPLAY: skip old screens, never skip game logic or Watchpoint events.
+ if shouldRenderP1() then
+  renderBuffersP1()
+ end
+
+ -- Preserve the original last position of savestate keyboard handling.
+ getSaveStateInput()
 end
 
 emu:reset()
